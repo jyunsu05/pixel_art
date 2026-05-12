@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: pixel-art-converter-api
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AI_PROVIDER
+        value: mock
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: OUTPUT_DIR
+        value: /tmp/outputs
+      - key: CORS_ORIGINS
+        value: https://frontend-phi-lime.vercel.app,https://pixel-art-converter.vercel.app,http://localhost:5173
+      - key: PYTHON_VERSION
+        value: "3.11.0"
