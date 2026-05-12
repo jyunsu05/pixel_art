@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: pixel-art-converter-api
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AI_PROVIDER
+        value: mock
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: OUTPUT_DIR
+        value: /tmp/outputs
+      - key: CORS_ORIGINS
+        value: https://pixel-art-converter.vercel.app,http://localhost:5173
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: HF_API_TOKEN
+        sync: false
+    disk:
+      name: pixel-art-data
+      mountPath: /tmp
+      sizeGB: 1
