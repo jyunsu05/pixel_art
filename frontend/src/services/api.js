@@ -21,17 +21,45 @@ export async function uploadImage(file, onProgress) {
   return data; // { file_id, filename, url, ... }
 }
 
+// ─── AI Status ───────────────────────────────────────────────────────────────
+
+export async function getAiStatus() {
+  const { data } = await api.get("/ai/status");
+  return data;
+}
+
+// ─── Step 1b: Upload manually bg-removed canvas PNG ─────────────────────────
+
+export async function uploadBgRemoved(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/upload/bg-removed", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data; // { file_id, filename, url }
+}
+
 // ─── Step 2: Pixelate ────────────────────────────────────────────────────────
 
-export async function pixelateImage({ file_id, filename, pixel_size, num_colors, preview_scale }) {
+export async function pixelateImage({
+  file_id,
+  filename,
+  pixel_size,
+  num_colors,
+  preview_scale,
+  auto_remove_bg = false,
+  bg_model = "human",
+}) {
   const { data } = await api.post("/pixel", {
     file_id,
     filename,
     pixel_size: pixel_size ?? 16,
     num_colors: num_colors ?? 16,
     preview_scale: preview_scale ?? 8,
+    auto_remove_bg,
+    bg_model,
   });
-  return data; // { pixel_id, preview_url, raw_url, ... }
+  return data; // { pixel_id, preview_url, raw_url, bg_removed_url, ... }
 }
 
 // ─── Step 3a: Chromakey ──────────────────────────────────────────────────────

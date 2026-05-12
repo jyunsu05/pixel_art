@@ -3,9 +3,9 @@ import { Sliders, Zap, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function PixelPanel({ onPixelate, pixelData, loading, disabled }) {
-  const [pixelSize, setPixelSize] = useState(16);
-  const [numColors, setNumColors] = useState(16);
-  const [previewScale, setPreviewScale] = useState(8);
+  const [pixelSize,    setPixelSize]    = useState(48);
+  const [numColors,    setNumColors]    = useState(16);
+  const [previewScale, setPreviewScale] = useState(6);
 
   const handleRun = () => {
     onPixelate({ pixel_size: pixelSize, num_colors: numColors, preview_scale: previewScale });
@@ -14,31 +14,40 @@ export default function PixelPanel({ onPixelate, pixelData, loading, disabled })
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="step-badge bg-indigo-800 text-indigo-300 ring-2 ring-indigo-500">2</div>
-        <div>
-          <h2 className="text-lg font-bold text-gray-100">기초 도트 생성</h2>
-          <p className="text-xs text-dark-400 font-mono">Pixelate & Color Reduction</p>
+        <div className="step-badge bg-indigo-800 text-indigo-300 ring-2 ring-indigo-500">
+          <Sliders size={13} />
         </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-100">도트 아트 생성</h2>
+          <p className="text-xs text-dark-400 font-mono">Pixel Art Reconstruction</p>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="bg-indigo-900/20 border border-indigo-700/40 rounded-lg p-3 text-xs text-indigo-200 space-y-0.5">
+        <p className="font-semibold text-indigo-300 mb-1">🎮 게임 스프라이트 스타일로 변환</p>
+        <p>배경 제거된 캐릭터를 아웃라인 + 플랫 컬러 도트 아트로 재구성합니다.</p>
+        <p>픽셀 크기가 클수록 더 세밀한 표현이 가능합니다.</p>
       </div>
 
       <div className="glass-card p-4 space-y-4">
         <SliderField
           label="픽셀 해상도"
-          sublabel="Pixel Size"
+          sublabel="Art Width (pixels)"
           value={pixelSize}
-          min={4}
-          max={64}
-          step={4}
+          min={16}
+          max={96}
+          step={8}
           onChange={setPixelSize}
           unit="px"
-          description={`가로 ${pixelSize}픽셀로 축소 후 재구성`}
+          description={`캐릭터 가로 ${pixelSize} 픽셀로 재구성`}
         />
         <SliderField
-          label="색상 수 제한"
+          label="색상 수"
           sublabel="Palette Size"
           value={numColors}
-          min={2}
-          max={64}
+          min={4}
+          max={32}
           step={2}
           onChange={setNumColors}
           unit="colors"
@@ -49,11 +58,11 @@ export default function PixelPanel({ onPixelate, pixelData, loading, disabled })
           sublabel="Preview Scale"
           value={previewScale}
           min={2}
-          max={16}
+          max={12}
           step={1}
           onChange={setPreviewScale}
           unit="×"
-          description={`출력 미리보기: ${pixelSize * previewScale}×${pixelSize * previewScale}px`}
+          description={`미리보기 출력: ${pixelSize * previewScale}×${pixelSize * previewScale}px`}
         />
 
         <button
@@ -66,35 +75,41 @@ export default function PixelPanel({ onPixelate, pixelData, loading, disabled })
           ) : (
             <Zap size={16} />
           )}
-          {loading ? "처리 중..." : "도트로 변환"}
+          {loading ? "변환 중..." : "도트 아트로 변환"}
         </button>
       </div>
 
-      {/* Result preview */}
+      {/* Result */}
       {pixelData && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-2"
+          className="space-y-3"
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <p className="text-xs text-dark-400 font-mono text-center">원본 픽셀 (Raw)</p>
-              <div className="image-checkerboard rounded-lg p-2 flex items-center justify-center" style={{ minHeight: 100 }}>
+              <div
+                className="image-checkerboard rounded-lg p-2 flex items-center justify-center"
+                style={{ minHeight: 100 }}
+              >
                 <img
-                  src={pixelData.raw_url}
+                  src={`${pixelData.raw_url}?t=${Date.now()}`}
                   alt="Raw pixel art"
-                  className="pixel-render max-h-32 object-contain"
+                  className="pixel-render max-h-40 object-contain"
                 />
               </div>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-dark-400 font-mono text-center">확대 미리보기</p>
-              <div className="image-checkerboard rounded-lg p-2 flex items-center justify-center" style={{ minHeight: 100 }}>
+              <div
+                className="image-checkerboard rounded-lg p-2 flex items-center justify-center"
+                style={{ minHeight: 100 }}
+              >
                 <img
-                  src={pixelData.preview_url}
+                  src={`${pixelData.preview_url}?t=${Date.now()}`}
                   alt="Preview"
-                  className="pixel-render max-h-32 object-contain"
+                  className="pixel-render max-h-40 object-contain"
                 />
               </div>
             </div>
@@ -118,16 +133,12 @@ function SliderField({ label, sublabel, value, min, max, step, onChange, unit, d
           <span className="text-xs text-dark-400 font-mono ml-2">{sublabel}</span>
         </div>
         <span className="text-sm font-bold text-pixel-400 font-mono tabular-nums">
-          {value}
-          {unit}
+          {value}{unit}
         </span>
       </div>
       <input
         type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full h-1.5 bg-dark-500 rounded-full appearance-none cursor-pointer
                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4

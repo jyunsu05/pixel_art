@@ -13,7 +13,7 @@ const MOTION_LABELS = {
 
 export default function AnimationPreview({ onAnimate, animationData, loading, disabled }) {
   const [selectedMotion, setSelectedMotion] = useState("walk");
-  const [frameCount, setFrameCount] = useState(0);
+  const [frameCount, setFrameCount] = useState(6);   // actual frames to generate
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [fps, setFps] = useState(8);
@@ -69,10 +69,35 @@ export default function AnimationPreview({ onAnimate, animationData, loading, di
           </div>
         </div>
 
-        {/* FPS */}
+        {/* Frame COUNT — 실제 생성할 프레임 수 */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-300 font-semibold">재생 속도 (FPS)</span>
+            <div>
+              <span className="text-gray-300 font-semibold">프레임 수 (Frame Count)</span>
+              <span className="text-dark-400 ml-2 font-mono text-[10px]">생성할 장수</span>
+            </div>
+            <span className="text-amber-400 font-mono font-bold">{frameCount} frames</span>
+          </div>
+          <input
+            type="range" min={2} max={12} step={1} value={frameCount}
+            onChange={(e) => setFrameCount(Number(e.target.value))}
+            className="w-full h-1.5 bg-dark-500 rounded-full appearance-none cursor-pointer
+                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
+                       [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full
+                       [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:cursor-pointer"
+          />
+          <div className="flex justify-between text-[10px] text-dark-400 font-mono">
+            <span>2 (짧은 루프)</span><span>12 (부드러운 모션)</span>
+          </div>
+        </div>
+
+        {/* FPS — 미리보기 재생 속도만 조절 */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <div>
+              <span className="text-gray-300 font-semibold">미리보기 FPS</span>
+              <span className="text-dark-400 ml-2 font-mono text-[10px]">재생 속도만</span>
+            </div>
             <span className="text-pixel-400 font-mono">{fps} fps</span>
           </div>
           <input
@@ -91,7 +116,7 @@ export default function AnimationPreview({ onAnimate, animationData, loading, di
           disabled={loading || disabled}
         >
           {loading ? <RefreshCw size={16} className="animate-spin" /> : <Film size={16} />}
-          {loading ? "프레임 생성 중..." : "애니메이션 생성"}
+          {loading ? "프레임 생성 중..." : `${frameCount}프레임 애니메이션 생성`}
         </button>
       </div>
 

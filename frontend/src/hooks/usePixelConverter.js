@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import {
   uploadImage,
+  uploadBgRemoved,
   pixelateImage,
   applyChromakey,
   aiTransform,
@@ -14,15 +15,16 @@ import {
 const INITIAL_STATE = {
   currentStep: 0,
   upload: null,
+  bgRemoved: null,        // manual bg removal result (from canvas tool)
   pixel: null,
   chroma: null,
   ai: null,
   animation: null,
   export: null,
   // Video pipeline state
-  videoFile: null,        // { name, size, info } — client-side file meta
-  videoUpload: null,      // server response after video upload
-  videoExtract: null,     // frame extraction result
+  videoFile: null,
+  videoUpload: null,
+  videoExtract: null,
   loading: false,
   error: null,
   uploadProgress: 0,
@@ -49,18 +51,39 @@ export function usePixelConverter() {
     }
   }, []);
 
+  // ── Step 1b: Upload canvas bg-removed PNG ────────────────────────────────
+  const handleBgRemovedConfirm = useCallback(async (file) => {
+    setLoading(true);
+    try {
+      const data = await uploadBgRemoved(file);
+      setState((s) => ({ ...s, bgRemoved: data, currentStep: 2, loading: false }));
+      return data;
+    } catch (e) {
+      setError(e.response?.data?.detail || e.message);
+    }
+  }, []);
+
   // ── Step 2 ──────────────────────────────────────────────────────────────────
   const handlePixelate = useCallback(
-    async ({ pixel_size = 16, num_colors = 16, preview_scale = 8 } = {}) => {
+    async ({ pixel_size = 16, num_colors = 16, preview_scale = 8, auto_remove_bg = false, bg_model = "human" } = {}) => {
       if (!state.upload) return;
       setLoading(true);
       try {
+        // If manual bg-removal was done, use that image (already has transparency)
+        // Skip auto_remove_bg in that case
+        const useBgRemoved = !!state.bgRemoved;
+        const fileId = useBgRemoved ? state.bgRemoved.file_id : state.upload.file_id;
+        const filename = useBgRemoved
+          ? state.bgRemoved.filename
+          : state.upload.filename;
         const data = await pixelateImage({
-          file_id: state.upload.file_id,
-          filename: state.upload.filename,
+          file_id: fileId,
+          filename,
           pixel_size,
           num_colors,
           preview_scale,
+          auto_remove_bg: useBgRemoved ? false : auto_remove_bg,
+          bg_model,
         });
         setState((s) => ({ ...s, pixel: data, currentStep: 2, loading: false }));
         return data;
@@ -68,7 +91,7 @@ export function usePixelConverter() {
         setError(e.response?.data?.detail || e.message);
       }
     },
-    [state.upload]
+    [state.upload, state.bgRemoved]
   );
 
   // ── Step 3a: Chromakey ───────────────────────────────────────────────────────
@@ -216,6 +239,7 @@ export function usePixelConverter() {
   return {
     ...state,
     handleUpload,
+    handleBgRemovedConfirm,
     handlePixelate,
     handleChromakey,
     handleAiTransform,

@@ -1,120 +1,171 @@
 """
-Pixel art conversion service.
-Steps:
-  1. Downscale image to target pixel resolution.
-  2. Quantize to a limited palette (color reduction).
-  3. Upscale back to preview size using nearest-neighbour (sharp pixels).
+Pixel art reconstruction — game-sprite style (Eternal Return aesthetic).
+
+The input photo is used only as a colour/shape REFERENCE.
+The result should look like it was hand-drawn as a game sprite, NOT a
+filtered photograph.
+
+Pipeline:
+  1. cv2.stylization  — converts the photo into a flat-colour illustration
+                        (like a cartoon/painting — no photo gradients).
+  2. Saturation + contrast boost — vivid game palette.
+  3. Downscale to art grid.
+  4. K-means palette (PP seeds, small k for clean colour blocks).
+  5. 3×3 median + re-snap — removes isolated pixels.
+  6. Pure dark outlines — silhouette inner ring + internal colour edges.
+  7. INTER_NEAREST upscale — hard pixel blocks, no blur.
 """
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 from app.utils.image_utils import ensure_rgba, pil_to_numpy, numpy_to_pil
 
 
-def pixelate(
-    img: Image.Image,
-    pixel_size: int = 16,
-    num_colors: int = 16,
-    preview_scale: int = 8,
-) -> Image.Image:
-    """
-    Convert an image to pixel art.
-
-    Args:
-        img: Input PIL image.
-        pixel_size: Target width/height in pixels (e.g. 16 → 16×16 art).
-        num_colors: Maximum number of colours in the output palette.
-        preview_scale: Upscale factor for the returned preview PNG.
-    Returns:
-        Pixel-art PIL image (RGBA, upscaled for preview).
-    """
-    img = ensure_rgba(img)
-    original_w, original_h = img.size
-
-    # Keep aspect ratio
-    if original_w >= original_h:
-        small_w = pixel_size
-        small_h = max(1, round(original_h * pixel_size / original_w))
-    else:
-        small_h = pixel_size
-        small_w = max(1, round(original_w * pixel_size / original_h))
-
-    # Downscale
-    small = img.resize((small_w, small_h), Image.LANCZOS)
-
-    # --- Color quantisation (only on RGB channels; preserve alpha separately) ---
-    rgb = small.convert("RGB")
-    alpha = small.split()[3]  # alpha channel
-
-    quantized_rgb = rgb.quantize(colors=num_colors, method=Image.Quantize.MEDIANCUT)
-    quantized_rgb = quantized_rgb.convert("RGB")
-
-    # Merge quantised RGB back with original alpha
-    r, g, b = quantized_rgb.split()
-    small_quantized = Image.merge("RGBA", (r, g, b, alpha))
-
-    # Upscale with nearest-neighbour for crisp pixels
-    preview_w = small_w * preview_scale
-    preview_h = small_h * preview_scale
-    result = small_quantized.resize((preview_w, preview_h), Image.NEAREST)
-
-    return result, small_quantized  # (preview, raw pixel art)
-
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def pixelate_cv2(
     img: Image.Image,
-    pixel_size: int = 16,
-    num_colors: int = 16,
+    pixel_size: int = 48,
+    num_colors: int = 10,
     preview_scale: int = 8,
-) -> Image.Image:
+) -> tuple[Image.Image, Image.Image]:
     """
-    OpenCV-based pixelation with k-means colour clustering.
+    Reconstruct the character as a hand-drawn game-sprite pixel art.
     Returns (preview_image, raw_pixel_art_image).
     """
     img = ensure_rgba(img)
-    arr = pil_to_numpy(img)  # H×W×4 (RGBA)
+    arr = pil_to_numpy(img)
+    orig_h, orig_w = arr.shape[:2]
 
-    original_h, original_w = arr.shape[:2]
-
-    if original_w >= original_h:
+    # ── 1. Target pixel art size ──────────────────────────────────────────
+    if orig_w >= orig_h:
         small_w = pixel_size
-        small_h = max(1, round(original_h * pixel_size / original_w))
+        small_h = max(1, round(orig_h * pixel_size / orig_w))
     else:
         small_h = pixel_size
-        small_w = max(1, round(original_w * pixel_size / original_h))
+        small_w = max(1, round(orig_w * pixel_size / orig_h))
 
-    # Downscale
-    small = cv2.resize(arr, (small_w, small_h), interpolation=cv2.INTER_AREA)
+    rgb   = arr[:, :, :3].astype(np.uint8)
+    alpha = arr[:, :, 3]
 
-    # Separate alpha
-    bgr = cv2.cvtColor(small[:, :, :3], cv2.COLOR_RGB2BGR)
-    alpha = small[:, :, 3]
+    # ── 2. Illustration-style flattening (cv2.stylization) ────────────────
+    # stylization() turns a photo into a flat-colour illustration / cartoon.
+    # sigma_s controls spatial smoothing (higher = larger flat regions).
+    # sigma_r controls colour similarity threshold (lower = fewer regions).
+    bgr      = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    stylized = cv2.stylization(bgr, sigma_s=80, sigma_r=0.30)
+    stylized = cv2.cvtColor(stylized, cv2.COLOR_BGR2RGB)
 
-    # K-means colour reduction on non-transparent pixels
-    mask = alpha > 0
-    pixels = bgr[mask].reshape(-1, 3).astype(np.float32)
+    # ── 3. Vivid game colours ─────────────────────────────────────────────
+    pil      = Image.fromarray(stylized)
+    pil      = ImageEnhance.Color(pil).enhance(2.0)       # vivid palette
+    pil      = ImageEnhance.Contrast(pil).enhance(1.35)   # push brights/darks
+    stylized = np.array(pil)
 
-    if len(pixels) > 0:
-        k = min(num_colors, len(pixels))
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
-        _, labels, centers = cv2.kmeans(
-            pixels, k, None, criteria, 5, cv2.KMEANS_RANDOM_CENTERS
-        )
-        centers = np.uint8(centers)
-        quantized_pixels = centers[labels.flatten()]
-        result_bgr = bgr.copy()
-        result_bgr[mask] = quantized_pixels
-    else:
-        result_bgr = bgr
+    # ── 4. Downscale ──────────────────────────────────────────────────────
+    flat_rgba = np.dstack([stylized, alpha])
+    small     = cv2.resize(flat_rgba, (small_w, small_h),
+                           interpolation=cv2.INTER_AREA)
+    srgb      = small[:, :, :3].astype(np.uint8)
+    salpha    = small[:, :, 3]
+    fg        = salpha > 20
 
-    result_rgb = cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
-    small_rgba = np.dstack([result_rgb, alpha])
+    # ── 5. K-means palette — small k for clean distinct colours ──────────
+    srgb, palette = _quantize_kmeans(srgb, fg, k=num_colors)
 
-    # Upscale (nearest-neighbour)
-    preview_w = small_w * preview_scale
-    preview_h = small_h * preview_scale
-    preview = cv2.resize(small_rgba, (preview_w, preview_h), interpolation=cv2.INTER_NEAREST)
+    # ── 6. Clean isolated pixels ──────────────────────────────────────────
+    srgb = _clean_isolated(srgb, fg, palette)
+
+    # ── 7. Pure dark outlines ─────────────────────────────────────────────
+    srgb = _draw_outline(srgb, salpha)
+
+    # ── 8. Compose & upscale ─────────────────────────────────────────────
+    small_rgba = np.dstack([srgb, salpha])
+    pw = small_w * preview_scale
+    ph = small_h * preview_scale
+    preview = cv2.resize(small_rgba, (pw, ph), interpolation=cv2.INTER_NEAREST)
 
     return numpy_to_pil(preview), numpy_to_pil(small_rgba)
+
+
+pixelate = pixelate_cv2
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _quantize_kmeans(
+    rgb: np.ndarray,
+    fg: np.ndarray,
+    k: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    result = rgb.copy()
+    if fg.sum() == 0:
+        return result, np.zeros((k, 3), dtype=np.uint8)
+
+    pixels = rgb[fg].reshape(-1, 3).astype(np.float32)
+    k      = min(k, len(pixels))
+    crit   = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.2)
+    _, labels, centers = cv2.kmeans(
+        pixels, k, None, crit, 10, cv2.KMEANS_PP_CENTERS
+    )
+    palette = np.clip(np.round(centers), 0, 255).astype(np.uint8)
+    result[fg] = palette[labels.flatten()]
+    return result, palette
+
+
+def _snap_to_palette(rgb: np.ndarray, fg: np.ndarray,
+                     palette: np.ndarray) -> np.ndarray:
+    if fg.sum() == 0 or len(palette) == 0:
+        return rgb
+    result  = rgb.copy()
+    fg_pix  = rgb[fg].astype(np.float32)
+    pal_f   = palette.astype(np.float32)
+    diff    = fg_pix[:, None, :] - pal_f[None, :, :]
+    nearest = np.argmin(np.sum(diff ** 2, axis=2), axis=1)
+    result[fg] = palette[nearest]
+    return result
+
+
+def _clean_isolated(rgb: np.ndarray, fg: np.ndarray,
+                    palette: np.ndarray) -> np.ndarray:
+    blurred      = cv2.medianBlur(rgb, 3)
+    result       = rgb.copy()
+    result[fg]   = blurred[fg]
+    return _snap_to_palette(result, fg, palette)
+
+
+def _draw_outline(
+    rgb: np.ndarray,
+    alpha: np.ndarray,
+    outline_color: tuple = (8, 8, 14),
+) -> np.ndarray:
+    result = rgb.copy()
+    fg     = (alpha > 20).astype(np.uint8)
+    k3     = np.ones((3, 3), np.uint8)
+    oc     = np.array(outline_color, dtype=np.float32)
+
+    # A) 1-px inner silhouette
+    eroded       = cv2.erode(fg, k3, iterations=1)
+    inner_border = (fg - eroded).astype(bool)
+    result[inner_border] = outline_color
+
+    # B) Internal colour edges — strong blend toward outline colour
+    gray   = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    edges  = cv2.Canny(gray, 15, 50)
+    cedges = (edges > 0) & eroded.astype(bool)
+
+    blend = 0.88
+    for c in range(3):
+        result[:, :, c] = np.where(
+            cedges,
+            np.clip(result[:, :, c] * (1 - blend) + oc[c] * blend, 0, 255),
+            result[:, :, c],
+        ).astype(np.uint8)
+
+    return result

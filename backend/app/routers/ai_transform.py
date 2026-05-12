@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.utils.image_utils import load_pil_image, save_pil_image, generate_file_id
-from app.services.ai_service import transform_to_pixel_art
+from app.services.ai_service import transform_to_pixel_art, get_provider_status
 
 router = APIRouter()
 
@@ -42,9 +42,15 @@ async def ai_transform(req: AITransformRequest):
 
     return JSONResponse(
         {
-            "ai_id": out_id,
-            "result_url": f"/outputs/{out_name}",
-            "provider": os.getenv("AI_PROVIDER", "mock"),
-            "prompt": req.prompt,
+            "ai_id":       out_id,
+            "result_url":  f"/outputs/{out_name}",
+            "provider":    get_provider_status()["active"],
+            "prompt":      req.prompt,
         }
     )
+
+
+@router.get("/status")
+def ai_status():
+    """Return which AI providers are configured."""
+    return JSONResponse(get_provider_status())
