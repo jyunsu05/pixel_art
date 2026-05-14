@@ -69,3 +69,6 @@ ngrok.exe
 _git_do_commit.bat
 _git_do_push.bat
 _git_do_amend.bat
+_merge_done.txt
+_git_merge_commit.bat
+_git_merge_push.bat
