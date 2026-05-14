@@ -110,17 +110,20 @@ npm run dev
 
 ### 프론트엔드 환경 변수
 
-백엔드가 Vercel이 아닌 다른 URL에 있을 경우:
+백엔드(AI/FastAPI 서버)가 **Vercel 도메인과 다른 호스트**에 있을 때 반드시 설정합니다.
 
 | 변수 | 설명 |
 |------|------|
-| `VITE_API_BASE_URL` | 예: `https://api.your-domain.com` (끝에 `/` 없이). 비우면 동일 출처 기준으로 요청합니다. |
+| `VITE_API_BASE_URL` | **권장.** 예: `https://api.example.com` — 스킴+호스트만 (끝 `/` 없음, `/api` 접미사 없음). 비우면 브라우저는 프론트 도메인만 바라보아 API 호출이 실패합니다. |
+| `REACT_APP_AI_URL` | 선택. CRA식 이름으로 동일 값 설정 가능(`vite.config.js`의 `envPrefix`). |
 
-빌드 시점에 주입되므로 값을 바꾼 뒤에는 **재배포**가 필요합니다.
+값은 **빌드 시점**에 포함되므로 변경 후 **Redeploy** 하세요.
 
 ### 백엔드 CORS
 
-백엔드 `CORS_ORIGINS` 환경 변수에 Vercel 도메인(예: `https://xxx.vercel.app`)을 추가하세요.
+백엔드 `CORS_ORIGINS`에 프론트 URL 전체를 추가하세요.  
+예: `http://localhost:5173,https://frontend-phi-lime.vercel.app`  
+(프리뷰·프로덕션 도메인을 각각 넣을 수 있습니다.)
 
 ---
 

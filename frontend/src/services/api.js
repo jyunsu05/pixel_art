@@ -1,6 +1,19 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+/** Backend origin only; no trailing slash or trailing `/api` (axios uses `/api/...`). */
+function normalizeApiOrigin(raw) {
+  if (raw == null || raw === "") return "";
+  let s = String(raw).trim();
+  s = s.replace(/\/api\/?$/i, "");
+  return s.replace(/\/+$/, "");
+}
+
+const BASE_URL = normalizeApiOrigin(
+  import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.REACT_APP_AI_URL ||
+    import.meta.env.REACT_APP_API_URL ||
+    ""
+);
 
 /** Same origin as axios API when env is set (e.g. split frontend hosting). */
 export function resolveAppUrl(path) {
