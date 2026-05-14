@@ -10,6 +10,7 @@ import {
   downloadZip,
   uploadVideo,
   extractVideoFrames,
+  apiErrorMessage,
 } from "../services/api";
 
 const INITIAL_STATE = {
@@ -47,7 +48,7 @@ export function usePixelConverter() {
       setState((s) => ({ ...s, upload: data, currentStep: 1, loading: false }));
       return data;
     } catch (e) {
-      setError(e.response?.data?.detail || e.message);
+      setError(apiErrorMessage(e));
     }
   }, []);
 
@@ -59,7 +60,7 @@ export function usePixelConverter() {
       setState((s) => ({ ...s, bgRemoved: data, currentStep: 2, loading: false }));
       return data;
     } catch (e) {
-      setError(e.response?.data?.detail || e.message);
+      setError(apiErrorMessage(e));
     }
   }, []);
 
@@ -88,7 +89,7 @@ export function usePixelConverter() {
         setState((s) => ({ ...s, pixel: data, currentStep: 3, loading: false }));
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.upload, state.bgRemoved]
@@ -105,7 +106,7 @@ export function usePixelConverter() {
         setState((s) => ({ ...s, chroma: data, currentStep: 3, loading: false }));
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.pixel, state.upload]
@@ -130,7 +131,7 @@ export function usePixelConverter() {
         setState((s) => ({ ...s, ai: { ...data, url: data.result_url }, currentStep: 4, loading: false }));
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
         setState((s) => ({ ...s, loading: false }));
       }
     },
@@ -153,7 +154,7 @@ export function usePixelConverter() {
         // also allow exporting at step 5
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.ai, state.chroma, state.pixel, state.upload]
@@ -179,7 +180,7 @@ export function usePixelConverter() {
         setState((s) => ({ ...s, export: data, currentStep: 6, loading: false }));
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.ai, state.chroma, state.pixel, state.upload]
@@ -196,7 +197,7 @@ export function usePixelConverter() {
       try {
         await downloadZip({ source_path: sourcePath, character_name, action, cell_size });
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.ai, state.chroma, state.pixel, state.upload]
@@ -218,7 +219,7 @@ export function usePixelConverter() {
       }));
       return data;
     } catch (e) {
-      setError(e.response?.data?.detail || e.message);
+      setError(apiErrorMessage(e));
     }
   }, []);
 
@@ -235,7 +236,7 @@ export function usePixelConverter() {
         setState((s) => ({ ...s, videoExtract: data, loading: false }));
         return data;
       } catch (e) {
-        setError(e.response?.data?.detail || e.message);
+        setError(apiErrorMessage(e));
       }
     },
     [state.videoUpload]

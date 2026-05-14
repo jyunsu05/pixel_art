@@ -37,9 +37,8 @@
 | 위치 | 변수명 | 값 예시 |
 |------|--------|---------|
 | **Vercel → Environment Variables** | `VITE_API_BASE_URL` | `https://xxxx-xx-xx.ngrok-free.app` |
-| 동일 | `REACT_APP_AI_URL` | 위와 **동일** (둘 중 하나만 있어도 됨) |
 
-- **`https://` 포함**, 끝에 **`/` 없음**, **`/api` 붙이지 않음** (프론트가 자동으로 `/api/...` 추가)  
+- **`https://` 포함**, 끝에 **`/` 없음**, **`/api` 붙이지 않음** (프론트가 `${VITE_API_BASE_URL}/api/...` 형태로 호출)  
 - ngrok 무료 도메인은 세션이 끝나면 URL이 바뀌므로 **Colab 재실행 후 Vercel 값도 갱신·재배포** 필요  
 
 ### Colab 안 환경 변수 (선택)

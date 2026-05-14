@@ -1,5 +1,14 @@
 import axios from "axios";
 
+/** 사용자에게 표시하는 통신/API 설정 안내 문구 (백엔드 주소 미설정·연결 실패 시). */
+export const AI_SERVER_HELP_MESSAGE = "AI 서버 주소를 확인해주세요.";
+
+/**
+ * Colab/백엔드 FastAPI가 **동일 런타임 안**의 SD WebUI(API)로 호출할 때 쓰는 기본 URL입니다.
+ * 브라우저가 이 주소로 직접 요청하지 않습니다 — 서버( Colab 내 uvicorn )가 `127.0.0.1:7860` 으로 붙습니다.
+ */
+export const INTERNAL_SD_WEBUI_DEFAULT = "http://127.0.0.1:7860";
+
 /**
  * Backend origin only (scheme + host[:port]). No trailing slash.
  * Strips repeated ".../api" suffix so baseURL does not become ".../api/api".
@@ -13,15 +22,16 @@ function normalizeApiOrigin(raw) {
   return s.replace(/\/+$/, "");
 }
 
-const RAW_API_ORIGIN =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.REACT_APP_AI_URL ||
-  import.meta.env.REACT_APP_API_URL ||
-  "";
+const RAW_API_ORIGIN = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const API_ORIGIN = normalizeApiOrigin(RAW_API_ORIGIN);
 
-/** Axios base: `{origin}/api` or `/api` (dev proxy / same-origin). */
+/** 프로덕션에서 API 베이스가 빌드에 포함되었는지 (`VITE_API_BASE_URL`). */
+export function isApiBaseConfigured() {
+  return Boolean(String(import.meta.env.VITE_API_BASE_URL ?? "").trim());
+}
+
+/** Axios base: `{origin}/api` 또는 `/api` (개발 시 Vite 프록시). `${VITE_API_BASE_URL}/api/...` 형태가 되도록 함. */
 function resolveAxiosApiBase() {
   if (!API_ORIGIN) return "/api";
   try {
@@ -36,17 +46,35 @@ function resolveAxiosApiBase() {
 
 const AXIOS_BASE = resolveAxiosApiBase();
 
-if (import.meta.env.PROD && typeof window !== "undefined") {
-  const host = window.location.hostname;
-  const local = host === "localhost" || host === "127.0.0.1";
-  if (!RAW_API_ORIGIN?.trim() && !local) {
-    console.error(
-      "[pixel-art] Missing VITE_API_BASE_URL or REACT_APP_AI_URL — POST /api/* hits this static host and typically returns 405/404. Set the env on Vercel and redeploy."
-    );
+/** 서버 detail 우선, 없으면 err.message, 최종 폴백은 AI_SERVER_HELP_MESSAGE. */
+export function apiErrorMessage(err) {
+  const d = err?.response?.data?.detail;
+  if (typeof d === "string" && d.trim()) return d;
+  if (Array.isArray(d) && d.length) {
+    const parts = d.map((x) => (typeof x?.msg === "string" ? x.msg : JSON.stringify(x)));
+    return parts.join("; ");
   }
+  if (d != null && typeof d === "object") {
+    try {
+      return JSON.stringify(d);
+    } catch {
+      return AI_SERVER_HELP_MESSAGE;
+    }
+  }
+  const msg = err?.message;
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return AI_SERVER_HELP_MESSAGE;
 }
 
-/** Same origin as axios API when env is set (e.g. split frontend hosting). */
+/** 프론트가 Vercel 등 공개 호스트일 때 API 호스트가 빠졌는지. */
+export function shouldWarnMissingApiEnv() {
+  if (!import.meta.env.PROD || typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  const local = h === "localhost" || h === "127.0.0.1";
+  return !local && !isApiBaseConfigured();
+}
+
+/** 환경 변수로 고정된 백엔드 origin이 있을 때만 절대 URL로 만듭니다 (예: 기본 뼈대 PNG). */
 export function resolveAppUrl(path) {
   if (!path || !path.startsWith("/")) return path;
   const origin = API_ORIGIN.replace(/\/+$/, "");
@@ -57,6 +85,26 @@ const api = axios.create({
   baseURL: AXIOS_BASE,
   timeout: 120_000,
 });
+
+api.interceptors.request.use(
+  (config) => {
+    if (shouldWarnMissingApiEnv()) {
+      return Promise.reject(new Error(AI_SERVER_HELP_MESSAGE));
+    }
+    return config;
+  },
+  (err) => Promise.reject(err)
+);
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (!err.response && err.code !== "ERR_CANCELED") {
+      err.message = AI_SERVER_HELP_MESSAGE;
+    }
+    return Promise.reject(err);
+  }
+);
 
 // ─── Step 1: Upload ──────────────────────────────────────────────────────────
 
@@ -89,9 +137,10 @@ export async function generateAnimation(params) {
   const form = new FormData();
   form.append("skeleton_sheet", params.skeleton_sheet);
   form.append("reference_photo", params.reference_photo);
-  form.append("sd_url", params.sd_url || "http://127.0.0.1:7860");
+  form.append("sd_url", params.sd_url || INTERNAL_SD_WEBUI_DEFAULT);
   form.append("num_frames", params.num_frames ?? 8);
   form.append("extra_prompt", params.extra_prompt || "");
+  form.append("extra_negative", params.extra_negative ?? "");
   form.append("lora_pixel", params.lora_pixel || "pixel_art");
   form.append("lora_chibi", params.lora_chibi || "chibi_style");
   form.append("lora_weight", params.lora_weight ?? 1.0);
@@ -117,7 +166,7 @@ export async function generateAnimation(params) {
 export async function generateSingle(params) {
   const form = new FormData();
   form.append("reference_photo", params.reference_photo);
-  form.append("sd_url", params.sd_url || "http://127.0.0.1:7860");
+  form.append("sd_url", params.sd_url || INTERNAL_SD_WEBUI_DEFAULT);
   form.append("extra_prompt", params.extra_prompt || "");
   form.append("lora_pixel", params.lora_pixel || "pixel_art");
   form.append("lora_chibi", params.lora_chibi || "chibi_style");

@@ -1,9 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// CRA-style REACT_APP_* vars only reach the client bundle when listed here.
 export default defineConfig({
-  envPrefix: ["VITE_", "REACT_APP_"],
+  envPrefix: ["VITE_"],
   plugins: [react()],
   server: {
     port: 5173,

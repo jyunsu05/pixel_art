@@ -10,6 +10,7 @@ import AnimationPreview from "./components/AnimationPreview";
 import VideoFramePanel from "./components/VideoFramePanel";
 import ExportPanel from "./components/ExportPanel";
 import { usePixelConverter } from "./hooks/usePixelConverter";
+import { AI_SERVER_HELP_MESSAGE, shouldWarnMissingApiEnv } from "./services/api";
 
 export default function App() {
   const {
@@ -77,6 +78,29 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      <AnimatePresence>
+        {shouldWarnMissingApiEnv() && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-amber-900/35 border-b border-amber-700/50 px-4 py-3"
+          >
+            <div className="max-w-4xl mx-auto flex items-start gap-2 text-amber-100 text-sm">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">{AI_SERVER_HELP_MESSAGE}</p>
+                <p className="text-xs text-amber-200/90 mt-1 font-mono">
+                  Vercel 프로젝트에 <span className="text-amber-50">VITE_API_BASE_URL</span> 을 설정하고 재배포하세요.
+                  (예: Colab/ngrok로 노출한 FastAPI 루트 URL, 끝에 <span className="text-amber-50">/</span> 없음 ·{" "}
+                  <span className="text-amber-50">/api</span> 접미사 없음)
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Step indicator ───────────────────────────────────────────────────── */}
       <div className="border-b border-dark-700 bg-dark-800/60 py-4 px-4">

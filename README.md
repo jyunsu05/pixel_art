@@ -114,16 +114,17 @@ npm run dev
 
 | 변수 | 설명 |
 |------|------|
-| `VITE_API_BASE_URL` | **권장.** 예: `https://api.example.com` — 스킴+호스트만 (끝 `/` 없음, `/api` 접미사 없음). 비우면 브라우저는 프론트 도메인만 바라보아 API 호출이 실패합니다. |
-| `REACT_APP_AI_URL` | 선택. CRA식 이름으로 동일 값 설정 가능(`vite.config.js`의 `envPrefix`). |
+| `VITE_API_BASE_URL` | **필수(프로덕션).** 예: `https://xxxx.ngrok-free.app` — 스킴+호스트만 (끝 `/` 없음, `/api` 접미사 없음). 클라이언트는 `${VITE_API_BASE_URL}/api/...` 로 요청합니다. 비우면 배포 환경에서 API 호출이 실패합니다. |
 
 값은 **빌드 시점**에 포함되므로 변경 후 **Redeploy** 하세요.
 
 ### 백엔드 CORS
 
 백엔드 `CORS_ORIGINS`에 프론트 URL 전체를 추가하세요.  
-예: `http://localhost:5173,https://frontend-phi-lime.vercel.app`  
+예: `http://localhost:5173,https://pixelart-snowy.vercel.app`  
 (프리뷰·프로덕션 도메인을 각각 넣을 수 있습니다.)
+
+Colab 기본값(`colab_pixel_backend.py`)에는 `https://pixelart-snowy.vercel.app` 가 이미 포함되어 있습니다.
 
 ---
 

@@ -2,7 +2,7 @@
  * AI 픽셀 아트 생성 패널
  *
  * 파이프라인:
- *  1. 사용자가 Colab SD WebUI URL 입력
+ *  1. SD WebUI 주소 입력(기본은 Colab 내부 127.0.0.1:7860 — 브라우저가 아니라 백엔드가 호출)
  *  2. 뼈대 시트 (기본값 자동 로드) — ControlNet Canny 가이드
  *  3. 캐릭터 사진 업로드 — Reference-only 색감 추출
  *  4. 그리드 레이아웃 + 행 선택 (4×4 시트 지원)
@@ -17,11 +17,16 @@ import {
   Grid, Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { checkSdStatus, generateAnimation, resolveAppUrl } from "../services/api";
+import {
+  checkSdStatus,
+  generateAnimation,
+  resolveAppUrl,
+  INTERNAL_SD_WEBUI_DEFAULT,
+  apiErrorMessage,
+} from "../services/api";
 
 /** Served by FastAPI — never rely on missing /public/skeleton_base.png (SPA would return HTML). */
 const DEFAULT_SKELETON_URL = resolveAppUrl("/api/ai/skeleton-default");
-const DEFAULT_SD_URL      = "http://127.0.0.1:7860";
 
 async function fetchUrlAsImageFile(url, filename = "image.png") {
   const resp = await fetch(url);
@@ -45,7 +50,7 @@ export default function ChromakeyAiPanel({
   hideOuterTitle = false,
 }) {
   // ── Connection ────────────────────────────────────────────────────────
-  const [sdUrl,    setSdUrl]    = useState(DEFAULT_SD_URL);
+  const [sdUrl,    setSdUrl]    = useState(INTERNAL_SD_WEBUI_DEFAULT);
   const [sdStatus, setSdStatus] = useState(null);
   const [checking, setChecking] = useState(false);
 
@@ -116,8 +121,8 @@ export default function ChromakeyAiPanel({
     try {
       const r = await checkSdStatus(sdUrl);
       setSdStatus(r);
-    } catch {
-      setSdStatus({ connected: false });
+    } catch (e) {
+      setSdStatus({ connected: false, error: apiErrorMessage(e) });
     } finally {
       setChecking(false);
     }
@@ -195,7 +200,7 @@ export default function ChromakeyAiPanel({
       // Notify parent so the step shows as completed
       if (onAiTransform) onAiTransform(data);
     } catch (e) {
-      setError(e.response?.data?.detail || e.message || "생성 실패");
+      setError(apiErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -235,7 +240,7 @@ export default function ChromakeyAiPanel({
           <input
             type="text" value={sdUrl}
             onChange={(e) => setSdUrl(e.target.value)}
-            placeholder="https://xxxx.ngrok-free.app 또는 http://127.0.0.1:7860"
+            placeholder={INTERNAL_SD_WEBUI_DEFAULT}
             className="flex-1 bg-dark-700 border border-dark-500 rounded-lg px-3 py-2
                        text-sm text-gray-200 font-mono placeholder-dark-400 outline-none
                        focus:border-cyan-500 transition"
@@ -273,7 +278,10 @@ export default function ChromakeyAiPanel({
           </div>
         )}
         <p className="text-[10px] text-dark-400">
-          연결 확인은 이 앱의 FastAPI 서버가 위 주소로 직접 요청합니다. 브라우저만 열려 있으면 안 되고 WebUI 프로세스가 떠 있어야 합니다.
+          브라우저는 <span className="text-dark-300 font-mono">VITE_API_BASE_URL</span>(FastAPI)만 호출합니다.
+          위 칸의 주소는 Colab·백엔드가 같은 머신에서 SD WebUI(<code className="text-yellow-400/90">--api</code>)로 붙을 때 쓰며,
+          사용자 PC 브라우저가 <span className="font-mono">127.0.0.1:7860</span>에 직접 접속하지 않습니다.
+          WebUI 프로세스가 떠 있어야 연결 확인이 성공합니다.
         </p>
       </div>
 

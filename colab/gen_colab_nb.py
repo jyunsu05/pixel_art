@@ -104,7 +104,7 @@ time.sleep(4)
 
 http_tunnel = ngrok.connect(8000, "http")
 print("=" * 58)
-print("Vercel 에 설정: VITE_API_BASE_URL 또는 REACT_APP_AI_URL")
+print("Vercel 에 설정: VITE_API_BASE_URL (FastAPI 루트 URL, /api 없음)")
 print(http_tunnel.public_url)
 print("=" * 58)"""
     ),
