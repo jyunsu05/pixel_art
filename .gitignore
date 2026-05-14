@@ -1,17 +1,41 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
 venv/
-*.egg-info/
-dist/
+ENV/
 .env
+.env.*
+!.env.example
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
 
 # Node
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 frontend/dist/
-frontend/.env.local
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Vercel / deploy
+.vercel/
+*.local
 
 # Uploads / outputs (runtime data)
 backend/uploads/*
@@ -22,8 +46,26 @@ backend/outputs/*
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# IDE
+# IDE / editors
 .vscode/
 .idea/
-*.cursor
+.cursor/
+*.swp
+*.swo
+*~
+
+# Logs & misc
+logs/
+*.log
+server.log
+
+# Local binaries (do not commit)
+ngrok.exe
+
+# Local-only git helper scripts
+.git_commit_msg_tmp.txt
+_git_do_commit.bat
+_git_do_push.bat
+_git_do_amend.bat

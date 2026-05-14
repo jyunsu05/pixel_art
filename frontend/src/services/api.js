@@ -2,6 +2,13 @@ import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
+/** Same origin as axios API when env is set (e.g. split frontend hosting). */
+export function resolveAppUrl(path) {
+  if (!path || !path.startsWith("/")) return path;
+  const origin = BASE_URL.replace(/\/$/, "");
+  return origin ? `${origin}${path}` : path;
+}
+
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 120_000,
@@ -25,6 +32,59 @@ export async function uploadImage(file, onProgress) {
 
 export async function getAiStatus() {
   const { data } = await api.get("/ai/status");
+  return data;
+}
+
+export async function checkSdStatus(sdUrl) {
+  const { data } = await api.get(`/ai/sd/status?url=${encodeURIComponent(sdUrl)}`);
+  return data;
+}
+
+export async function generateAnimation(params) {
+  const form = new FormData();
+  form.append("skeleton_sheet",  params.skeleton_sheet);
+  form.append("reference_photo", params.reference_photo);
+  form.append("sd_url",          params.sd_url          || "http://127.0.0.1:7860");
+  form.append("num_frames",      params.num_frames       ?? 8);
+  form.append("extra_prompt",    params.extra_prompt     || "");
+  form.append("lora_pixel",      params.lora_pixel       || "pixel_art");
+  form.append("lora_chibi",      params.lora_chibi       || "chibi_style");
+  form.append("lora_weight",     params.lora_weight      ?? 1.0);
+  form.append("steps",           params.steps            ?? 25);
+  form.append("cfg_scale",       params.cfg_scale        ?? 7.5);
+  form.append("canny_weight",    params.canny_weight     ?? 1.0);
+  form.append("ref_weight",      params.ref_weight       ?? 0.8);
+  form.append("output_width",    params.output_width     ?? 64);
+  form.append("output_height",   params.output_height    ?? 64);
+  form.append("remove_bg",       params.remove_bg        ?? true);
+  form.append("use_ref_only",    params.use_ref_only     ?? true);
+  form.append("sheet_cols",      params.sheet_cols       ?? 0);
+  form.append("sheet_rows",      params.sheet_rows       ?? 1);
+  form.append("row_index",       params.row_index        ?? 0);
+  form.append("skel_is_lineart", params.skel_is_lineart  ?? false);
+
+  const { data } = await api.post("/ai/animate", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 600_000,  // 10 min for 8-frame generation
+  });
+  return data;
+}
+
+export async function generateSingle(params) {
+  const form = new FormData();
+  form.append("reference_photo", params.reference_photo);
+  form.append("sd_url",          params.sd_url        || "http://127.0.0.1:7860");
+  form.append("extra_prompt",    params.extra_prompt  || "");
+  form.append("lora_pixel",      params.lora_pixel    || "pixel_art");
+  form.append("lora_chibi",      params.lora_chibi    || "chibi_style");
+  form.append("lora_weight",     params.lora_weight   ?? 1.0);
+  form.append("steps",           params.steps         ?? 25);
+  form.append("remove_bg",       params.remove_bg     ?? true);
+
+  const { data } = await api.post("/ai/generate", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120_000,
+  });
   return data;
 }
 

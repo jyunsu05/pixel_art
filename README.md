@@ -1,132 +1,178 @@
-# Pixel Art Converter — Unity Sprite Generator
+# AI Pixel Art Character Generator
 
-이미지를 업로드하여 게임용 픽셀 아트 리소스로 변환하고, 유니티에서 즉시 사용 가능한 스프라이트 시트로 내보내는 풀스택 웹 애플리케이션입니다.
+사용자 사진을 입력받아 **Human Base 스타일 8프레임 뼈대 시트**를 기준으로 **Unity용 도트 캐릭터 스프라이트**를 재구성하는 웹 도구입니다. 일반 픽셀화 파이프라인과 **Stable Diffusion WebUI API** 기반 AI 도트(뼈대 + 참조 이미지) 생성을 함께 지원합니다.
 
-## 폴더 구조
+---
+
+## 주요 기능
+
+- 이미지 업로드, 배경 제거(캔버스), 픽셀화 및 스프라이트 시트 내보내기
+- **AI 도트**: 뼈대 시트 + 캐릭터 참조 이미지로 SD WebUI(`txt2img` + ControlNet) 연동
+- 애니메이션·비디오 프레임 추출·Unity 내보내기(JSON 포함) 워크플로
+
+---
+
+## 아키텍처
+
+| 구분 | 역할 |
+|------|------|
+| **프론트엔드 (이 저장소)** | React + Vite UI. **프로덕션에서는 [Vercel](https://vercel.com) 등 정적 호스팅**에 배포하는 것을 전제로 합니다. |
+| **백엔드 (FastAPI)** | 업로드·픽셀 처리·SD 프록시 역할의 API 서버. 로컬/`Render`/`Railway` 등 **별도 프로세스**로 실행합니다. |
+| **Stable Diffusion WebUI** | 실제 **AI 이미지 연산**은 WebUI의 REST API(`--api`)를 통해 수행합니다. 로컬 GPU, **Google Colab**, 또는 자체 호스팅 인스턴스에 두고 **공개 URL**(ngrok, Cloudflare Tunnel 등)을 백엔드·브라우저 CORS와 맞춥니다. Hugging Face Spaces 등 **API 호환 엔드포인트**를 쓰는 경우에도 동일하게 `sd_url`만 맞추면 됩니다. |
+
+> Vercel 서버리스만으로 SD 연산을 돌리지는 않습니다. **브라우저 → (선택) 백엔드 → SD WebUI API** 경로를 유지하세요.
+
+---
+
+## 저장소 구조
 
 ```
-pixel-art-converter/
-├── frontend/                       # React + Vite + Tailwind CSS
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── StepIndicator.jsx   # 5단계 진행 표시 UI
-│   │   │   ├── UploadZone.jsx      # [1단계] 드래그 앤 드롭 업로드
-│   │   │   ├── PixelPanel.jsx      # [2단계] 도트 변환 패널
-│   │   │   ├── ChromakeyAiPanel.jsx# [3단계] 크로마키 + AI 변환
-│   │   │   ├── AnimationPreview.jsx# [4단계] 모션 프리뷰 플레이어
-│   │   │   └── ExportPanel.jsx     # [5단계] 스프라이트 시트 내보내기
-│   │   ├── hooks/
-│   │   │   └── usePixelConverter.js# 전체 5단계 상태 관리 훅
-│   │   ├── services/
-│   │   │   └── api.js              # FastAPI 연동 API 클라이언트
-│   │   ├── App.jsx                 # 메인 레이아웃 (사이드바 + 패널)
-│   │   └── index.css               # Tailwind + 다크 모드 스타일
-│   ├── package.json
-│   ├── vite.config.js
-│   └── tailwind.config.js
-│
-└── backend/                        # FastAPI (Python)
-    ├── app/
-    │   ├── main.py                 # FastAPI 앱 진입점, CORS, 라우터 등록
-    │   ├── routers/
-    │   │   ├── upload.py           # POST /api/upload
-    │   │   ├── pixel.py            # POST /api/pixel
-    │   │   ├── chromakey.py        # POST /api/chromakey
-    │   │   ├── ai_transform.py     # POST /api/ai
-    │   │   ├── animation.py        # POST /api/animation
-    │   │   └── export.py           # POST /api/export, /api/export/zip
-    │   ├── services/
-    │   │   ├── pixel_service.py    # OpenCV k-means 픽셀화 + 색상 양자화
-    │   │   ├── chromakey_service.py# HSV 마스크 기반 크로마키 제거
-    │   │   ├── ai_service.py       # Replicate / HuggingFace / Mock 인터페이스
-    │   │   ├── animation_service.py# Walk/Attack/Jump 등 프레임 생성
-    │   │   └── export_service.py   # 스프라이트 시트 + Unity JSON 메타 생성
-    │   └── utils/
-    │       └── image_utils.py      # PIL 공통 유틸리티
-    ├── requirements.txt
-    └── .env.example
+pixel_art/
+├── frontend/          # React + Vite (Vercel 빌드 대상)
+├── backend/           # FastAPI
+├── README.md
+├── vercel.json        # Vercel 루트 빌드 설정
+└── package.json       # 루트 빌드 스크립트 (npm run build)
 ```
 
-## 빠른 시작
+---
 
-### 1. 백엔드 설정
+## 사전 요구 사항
+
+- **Node.js** 18 이상  
+- **Python** 3.10 이상 (백엔드)  
+- AI 기능 사용 시: **Stable Diffusion WebUI**(ControlNet 등 확장 설치) 또는 동등한 API 엔드포인트  
+
+---
+
+## Stable Diffusion WebUI 실행 (기술 문서)
+
+브라우저에서 호스팅된 프론트(Vercel 등)와 통신하려면 WebUI가 **API를 노출**하고, **CORS**를 허용해야 합니다. 아래 인수는 **필수에 가깝게 사용**하는 것을 권장합니다.
+
+### 필수 플래그
+
+| 플래그 | 설명 |
+|--------|------|
+| `--api` | `/sdapi/v1/*` REST API 활성화 |
+| `--cors-allow-origins=*` | 교차 출처 요청 허용 (프로덕션에서는 특정 오리진으로 좁히는 것이 안전합니다) |
+
+### 예시 (launch 인자)
+
+```bash
+# Automatic1111 WebUI 예시 — 셸에 따라 따옴표가 필요할 수 있음
+python launch.py --api --listen --cors-allow-origins=*
+```
+
+Windows `webui-user.bat` 등에서는 다음과 같이 설정할 수 있습니다.
+
+```bat
+set COMMANDLINE_ARGS=--api --listen --cors-allow-origins=*
+```
+
+Stability Matrix 등 패키지 매니저를 쓰는 경우에도 **동일한 인수가 Launch 인자에 포함**되도록 설정하세요.
+
+### 보안 참고
+
+- 공개 망에 올릴 때는 `--cors-allow-origins=*` 대신 **`https://your-app.vercel.app`** 과 같이 **허용 출처를 명시**하고, 가능하면 **인증·방화벽**을 추가하세요.
+
+---
+
+## 로컬 개발
+
+### 백엔드
 
 ```bash
 cd backend
-
-# 가상환경 생성 (권장)
 python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # macOS/Linux
-
-# 패키지 설치
+# Windows: venv\Scripts\activate
+source venv/bin/activate   # macOS / Linux
 pip install -r requirements.txt
-
-# 환경변수 설정
-copy .env.example .env
-# .env 파일에서 AI_PROVIDER, API 키 등 설정
-
-# 서버 실행
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. 프론트엔드 설정
+### 프론트엔드
 
 ```bash
 cd frontend
-
-# 패키지 설치
-npm install
-
-# 개발 서버 실행
+npm ci
 npm run dev
-# → http://localhost:5173
 ```
 
-## API 엔드포인트
+개발 시 Vite 프록시가 `/api` 등을 `localhost:8000`으로 넘깁니다.
 
-| Method | URL | 설명 |
-|--------|-----|------|
-| POST | `/api/upload` | 이미지 업로드 (multipart) |
-| POST | `/api/pixel` | 픽셀화 + 색상 양자화 (OpenCV k-means) |
-| POST | `/api/chromakey` | 크로마키 배경 제거 |
-| POST | `/api/ai` | AI img2img 변환 (Replicate/HF/Mock) |
-| POST | `/api/animation` | 모션 프레임 시퀀스 생성 |
-| GET  | `/api/animation/motions` | 지원 모션 목록 |
-| POST | `/api/export` | 스프라이트 시트 + JSON 메타 생성 |
-| POST | `/api/export/zip` | ZIP 다운로드 (시트+JSON+개별 프레임) |
+---
 
-## AI 연동
+## Vercel 배포
 
-`.env` 파일에서 `AI_PROVIDER`를 설정합니다:
+1. GitHub에 이 저장소를 연결합니다.  
+2. Vercel 프로젝트에서 **Framework Preset**은 Vite로 두거나, 저장소 루트의 **`vercel.json`** 을 사용합니다.  
+3. **빌드 출력**은 `frontend/dist` 입니다 (루트 `vercel.json`에 정의됨).  
 
-- `mock` (기본값): API 키 없이 로컬 픽셀화로 대체
-- `replicate`: [Replicate](https://replicate.com) 계정 및 `REPLICATE_API_TOKEN` 필요
-- `huggingface`: [Hugging Face](https://huggingface.co) 계정 및 `HF_API_TOKEN` 필요
+### 프론트엔드 환경 변수
 
-## Unity에서 사용하기
+백엔드가 Vercel이 아닌 다른 URL에 있을 경우:
 
-1. `Export` 단계에서 **ZIP 다운로드** 클릭
-2. 스프라이트 시트 PNG를 Unity `Assets/Sprites/` 폴더에 복사
-3. Inspector에서 설정:
-   - Texture Type: **Sprite (2D and UI)**
-   - Sprite Mode: **Multiple**
-   - Filter Mode: **Point (no filter)**
-   - Compression: **None**
-   - Pixels Per Unit: `cell_size` 값 (기본 64)
-4. **Sprite Editor** → **Slice** → Cell Size: `{cell_size}×{cell_size}` 적용
-5. 동봉된 JSON 파일에서 프레임 이름/좌표 확인
-6. Animator Controller에서 프레임을 애니메이션 클립으로 배치
+| 변수 | 설명 |
+|------|------|
+| `VITE_API_BASE_URL` | 예: `https://api.your-domain.com` (끝에 `/` 없이). 비우면 동일 출처 기준으로 요청합니다. |
 
-## 파일 명명 규칙
+빌드 시점에 주입되므로 값을 바꾼 뒤에는 **재배포**가 필요합니다.
 
+### 백엔드 CORS
+
+백엔드 `CORS_ORIGINS` 환경 변수에 Vercel 도메인(예: `https://xxx.vercel.app`)을 추가하세요.
+
+---
+
+## GitHub에 코드 업로드 (터미널 명령 순서)
+
+저장소 루트(`pixel_art` 클론/프로젝트 폴더)에서 실행합니다. **이 프로젝트 폴더에만** 커밋 사용자 이름을 고정합니다.
+
+### PowerShell (Windows)
+
+```powershell
+cd C:\경로\pixel-art-converter
+
+git config --local user.name "jyunsu05"
+git config --local user.email "jyunsu05@users.noreply.github.com"
+
+git status
+# 초기화가 안 되어 있다면: git init
+
+git remote remove origin 2>$null
+git remote add origin https://github.com/jyunsu05/pixel_art.git
+
+git add .
+git commit -m "chore: initial import — AI Pixel Art Character Generator"
+git branch -M main
+git push -u origin main
 ```
-{캐릭터명}_{액션}_{프레임번호:02d}.png
-예: Character_walk_00.png, Hero_attack_03.png
+
+### Bash (macOS / Linux)
+
+```bash
+cd /path/to/pixel-art-converter
+
+git config --local user.name "jyunsu05"
+git config --local user.email "jyunsu05@users.noreply.github.com"
+
+git status
+# 필요 시: git init
+
+git remote remove origin 2>/dev/null || true
+git remote add origin https://github.com/jyunsu05/pixel_art.git
+
+git add .
+git commit -m "chore: initial import — AI Pixel Art Character Generator"
+git branch -M main
+git push -u origin main
 ```
 
-## 기술 스택
+> 이미 `origin` 이 있고 URL만 바꾸려면:  
+> `git remote set-url origin https://github.com/jyunsu05/pixel_art.git`
 
-- **프론트엔드**: React 18, Vite, Tailwind CSS, Framer Motion, react-dropzone
-- **백엔드**: FastAPI, Uvicorn, Pillow, OpenCV, NumPy
-- **AI 연동**: Replicate SDK, Hugging Face Inference API
+---
+
+## 라이선스
+
+이 저장소에 별도 라이선스 파일이 없다면, 배포 전 **LICENSE** 추가 여부를 결정하세요.

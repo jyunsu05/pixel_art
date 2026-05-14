@@ -4,8 +4,7 @@ import { motion } from "framer-motion";
 const STEPS = [
   { label: "업로드", sublabel: "Upload" },
   { label: "배경 제거", sublabel: "Bg Remove" },
-  { label: "도트 생성", sublabel: "Pixelate" },
-  { label: "크로마키 · AI", sublabel: "Chroma & AI" },
+  { label: "도트 생성", sublabel: "Pixel / AI" },
   { label: "애니메이션", sublabel: "Animation" },
   { label: "비디오→시트", sublabel: "Video Extract" },
   { label: "유니티 내보내기", sublabel: "Export" },

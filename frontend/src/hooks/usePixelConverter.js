@@ -85,7 +85,7 @@ export function usePixelConverter() {
           auto_remove_bg: useBgRemoved ? false : auto_remove_bg,
           bg_model,
         });
-        setState((s) => ({ ...s, pixel: data, currentStep: 2, loading: false }));
+        setState((s) => ({ ...s, pixel: data, currentStep: 3, loading: false }));
         return data;
       } catch (e) {
         setError(e.response?.data?.detail || e.message);
@@ -115,20 +115,26 @@ export function usePixelConverter() {
   const handleAiTransform = useCallback(
     async (options = {}) => {
       const sourcePath =
-        state.chroma?.result_url ||
+        options.source_path ||
+        state.bgRemoved?.url ||
         state.pixel?.raw_url ||
         state.upload?.url;
       if (!sourcePath) return;
       setLoading(true);
       try {
-        const data = await aiTransform({ source_path: sourcePath, ...options });
-        setState((s) => ({ ...s, ai: data, currentStep: 3, loading: false }));
+        const data = await aiTransform({
+          source_path: sourcePath,
+          prompt: options.prompt,
+          strength: options.strength ?? 0.75,
+        });
+        setState((s) => ({ ...s, ai: { ...data, url: data.result_url }, currentStep: 4, loading: false }));
         return data;
       } catch (e) {
         setError(e.response?.data?.detail || e.message);
+        setState((s) => ({ ...s, loading: false }));
       }
     },
-    [state.chroma, state.pixel, state.upload]
+    [state.bgRemoved, state.pixel, state.upload]
   );
 
   // ── Step 4: Animation ────────────────────────────────────────────────────────
@@ -144,6 +150,7 @@ export function usePixelConverter() {
       try {
         const data = await createAnimation({ source_path: sourcePath, motion, frame_count });
         setState((s) => ({ ...s, animation: data, currentStep: 4, loading: false }));
+        // also allow exporting at step 5
         return data;
       } catch (e) {
         setError(e.response?.data?.detail || e.message);
@@ -169,7 +176,7 @@ export function usePixelConverter() {
           action,
           cell_size,
         });
-        setState((s) => ({ ...s, export: data, currentStep: 5, loading: false }));
+        setState((s) => ({ ...s, export: data, currentStep: 6, loading: false }));
         return data;
       } catch (e) {
         setError(e.response?.data?.detail || e.message);
@@ -234,6 +241,17 @@ export function usePixelConverter() {
     [state.videoUpload]
   );
 
+  const handleSdGenerateComplete = useCallback((data) => {
+    setState((s) => ({
+      ...s,
+      ai: {
+        ...data,
+        result_url: data.sprite_sheet_url,
+      },
+      currentStep: Math.max(s.currentStep, 3),
+    }));
+  }, []);
+
   const reset = useCallback(() => setState(INITIAL_STATE), []);
 
   return {
@@ -243,6 +261,7 @@ export function usePixelConverter() {
     handlePixelate,
     handleChromakey,
     handleAiTransform,
+    handleSdGenerateComplete,
     handleAnimate,
     handleExport,
     handleDownloadZip,

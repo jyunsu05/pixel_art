@@ -1,0 +1,15 @@
+{
+  "name": "ai-pixel-art-character-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo root — frontend lives in ./frontend (Vercel / npm --prefix)",
+  "scripts": {
+    "build": "npm ci --prefix frontend && npm run build --prefix frontend",
+    "dev": "npm run dev --prefix frontend",
+    "preview": "npm run preview --prefix frontend"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

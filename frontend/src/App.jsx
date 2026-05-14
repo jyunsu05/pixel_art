@@ -6,13 +6,10 @@ import StepIndicator from "./components/StepIndicator";
 import UploadZone from "./components/UploadZone";
 import BgRemovalCanvas from "./components/BgRemovalCanvas";
 import PixelPanel from "./components/PixelPanel";
-import ChromakeyAiPanel from "./components/ChromakeyAiPanel";
 import AnimationPreview from "./components/AnimationPreview";
 import VideoFramePanel from "./components/VideoFramePanel";
 import ExportPanel from "./components/ExportPanel";
 import { usePixelConverter } from "./hooks/usePixelConverter";
-
-const STEPS = ["upload", "pixel", "chromakey", "animation", "export"];
 
 export default function App() {
   const {
@@ -35,6 +32,7 @@ export default function App() {
     handlePixelate,
     handleChromakey,
     handleAiTransform,
+    handleSdGenerateComplete,
     handleAnimate,
     handleExport,
     handleDownloadZip,
@@ -46,8 +44,10 @@ export default function App() {
   // For mobile: which panel is shown (same as currentStep but user can also navigate manually)
   const [visiblePanel, setVisiblePanel] = useState(0);
 
-  const canGoNext = visiblePanel < 6 && currentStep > visiblePanel;
+  const canGoNext = visiblePanel < 5 && currentStep > visiblePanel;
   const canGoPrev = visiblePanel > 0;
+
+  const referenceImageUrl = bgRemoved?.url || upload?.url || "";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -111,11 +111,10 @@ export default function App() {
             {[
               { label: "업로드", desc: "이미지 업로드", step: 0, color: "pixel" },
               { label: "배경 제거", desc: "Magic Wand 클릭 선택", step: 1, color: "teal" },
-              { label: "도트 생성", desc: "픽셀화 & 팔레트", step: 2, color: "indigo" },
-              { label: "크로마키 · AI", desc: "AI 도트 재구성", step: 3, color: "cyan" },
-              { label: "애니메이션", desc: "모션 프리뷰", step: 4, color: "amber" },
-              { label: "비디오 → 시트", desc: "Video Frame Extraction", step: 5, color: "violet" },
-              { label: "유니티 내보내기", desc: "Sprite Sheet + JSON", step: 6, color: "rose" },
+              { label: "도트 생성", desc: "일반 픽셀화 또는 AI(뼈대+SD)", step: 2, color: "indigo" },
+              { label: "애니메이션", desc: "모션 프리뷰", step: 3, color: "amber" },
+              { label: "비디오 → 시트", desc: "Video Frame Extraction", step: 4, color: "violet" },
+              { label: "유니티 내보내기", desc: "Sprite Sheet + JSON", step: 5, color: "rose" },
             ].map((item) => {
               const isActive = visiblePanel === item.step;
               const isDone = currentStep > item.step;
@@ -173,6 +172,8 @@ export default function App() {
                   onPixelate={handlePixelate}
                   onChromakey={handleChromakey}
                   onAiTransform={handleAiTransform}
+                  onSdGenerateComplete={handleSdGenerateComplete}
+                  referenceImageUrl={referenceImageUrl}
                   onAnimate={handleAnimate}
                   onExport={handleExport}
                   onDownloadZip={handleDownloadZip}
@@ -183,7 +184,7 @@ export default function App() {
             </AnimatePresence>
 
             {/* Next step hint */}
-            {currentStep === visiblePanel + 1 && visiblePanel < 6 && (
+            {currentStep === visiblePanel + 1 && visiblePanel < 5 && (
               <motion.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -227,6 +228,8 @@ export default function App() {
                 onPixelate={handlePixelate}
                 onChromakey={handleChromakey}
                 onAiTransform={handleAiTransform}
+                onSdGenerateComplete={handleSdGenerateComplete}
+                referenceImageUrl={referenceImageUrl}
                 onAnimate={handleAnimate}
                 onExport={handleExport}
                 onDownloadZip={handleDownloadZip}
@@ -273,6 +276,8 @@ function PanelContent({
   videoFile, videoUpload, videoExtract,
   loading, uploadProgress, currentStep,
   onUpload, onBgRemovedConfirm, onPixelate, onChromakey, onAiTransform,
+  onSdGenerateComplete,
+  referenceImageUrl,
   onAnimate, onExport, onDownloadZip,
   onVideoUpload, onExtractFrames,
 }) {
@@ -301,29 +306,20 @@ function PanelContent({
           pixelData={pixel}
           loading={loading && currentStep === 2}
           disabled={!upload}
+          uploadedUrl={referenceImageUrl}
+          onSdGenerateComplete={onSdGenerateComplete}
         />
       );
     case 3:
       return (
-        <ChromakeyAiPanel
-          onChromakey={onChromakey}
-          onAiTransform={onAiTransform}
-          chromaData={chroma}
-          aiData={ai}
-          loading={loading && currentStep <= 4}
+        <AnimationPreview
+          onAnimate={onAnimate}
+          animationData={animation}
+          loading={loading && currentStep === 3}
           disabled={!upload}
         />
       );
     case 4:
-      return (
-        <AnimationPreview
-          onAnimate={onAnimate}
-          animationData={animation}
-          loading={loading && currentStep === 5}
-          disabled={!upload}
-        />
-      );
-    case 5:
       return (
         <VideoFramePanel
           onVideoUpload={onVideoUpload}
@@ -333,13 +329,13 @@ function PanelContent({
           loading={loading}
         />
       );
-    case 6:
+    case 5:
       return (
         <ExportPanel
           onExport={onExport}
           onDownloadZip={onDownloadZip}
           exportData={exportData}
-          loading={loading && currentStep === 6}
+          loading={loading}
           disabled={!upload}
         />
       );
